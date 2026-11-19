@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AddressInput from './AddressInput'
 
 function defaultDepartureLocal() {
   // One hour from now, formatted for <input type="datetime-local">.
@@ -7,43 +8,62 @@ function defaultDepartureLocal() {
   return new Date(date - offset).toISOString().slice(0, 16)
 }
 
-export default function TripForm({ onSubmit, loading }) {
-  const [form, setForm] = useState({
-    origin: '',
-    destination: '',
-    departureLocal: defaultDepartureLocal(),
-    loadLb: 35000,
-    intervalMiles: 10,
-  })
+// Sends a suggestion's coordinates when one was picked, otherwise the typed text.
+const toPayload = (field) => field.place ?? field.text.trim()
 
-  const update = (field) => (event) => setForm({ ...form, [field]: event.target.value })
+export default function TripForm({ onSubmit, loading }) {
+  const [origin, setOrigin] = useState({ text: '', place: null })
+  const [destination, setDestination] = useState({ text: '', place: null })
+  const [departureLocal, setDepartureLocal] = useState(defaultDepartureLocal())
+  const [loadLb, setLoadLb] = useState(35000)
+  const [intervalMiles, setIntervalMiles] = useState(10)
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    onSubmit(form)
+    onSubmit({
+      origin: toPayload(origin),
+      destination: toPayload(destination),
+      departureLocal,
+      loadLb,
+      intervalMiles,
+    })
   }
 
   return (
     <form className="trip-form" onSubmit={handleSubmit}>
-      <label>
-        Origin
-        <input required value={form.origin} onChange={update('origin')} placeholder="Denver, CO" />
-      </label>
-      <label>
-        Destination
-        <input required value={form.destination} onChange={update('destination')} placeholder="Salt Lake City, UT" />
-      </label>
+      <AddressInput
+        label="Origin"
+        placeholder="9 Hi River Road, Barnstable, MA"
+        value={origin}
+        onChange={setOrigin}
+        required
+      />
+      <AddressInput
+        label="Destination"
+        placeholder="Salt Lake City, UT"
+        value={destination}
+        onChange={setDestination}
+        required
+      />
       <label>
         Departure
-        <input required type="datetime-local" value={form.departureLocal} onChange={update('departureLocal')} />
+        <input required type="datetime-local" value={departureLocal} onChange={(e) => setDepartureLocal(e.target.value)} />
       </label>
       <label>
         Load weight (lb)
-        <input required type="number" min="1" max="200000" step="any" value={form.loadLb} onChange={update('loadLb')} />
+        <input
+          required
+          type="number"
+          min="1"
+          max="200000"
+          step="any"
+          value={loadLb}
+          onChange={(e) => setLoadLb(e.target.value)}
+        />
       </label>
       <label>
         Checkpoint every (miles)
-        <select value={form.intervalMiles} onChange={update('intervalMiles')}>
+        <select value={intervalMiles} onChange={(e) => setIntervalMiles(e.target.value)}>
           <option value="10">10</option>
           <option value="25">25</option>
           <option value="50">50</option>

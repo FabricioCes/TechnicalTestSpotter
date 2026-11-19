@@ -131,9 +131,14 @@ def _place_json(place: Place) -> dict:
     return {"label": place.label, "lat": place.lat, "lon": place.lon}
 
 
+def _resolve(location: str | Place) -> Place:
+    """A Place chosen from autocomplete is used as-is; free text is geocoded."""
+    return location if isinstance(location, Place) else geocode(location)
+
+
 def plan_trip(
-    origin_text: str,
-    destination_text: str,
+    origin_text: str | Place,
+    destination_text: str | Place,
     departure: datetime,
     load_lb: float,
     interval_miles: float = DEFAULT_INTERVAL_MILES,
@@ -142,8 +147,8 @@ def plan_trip(
     if departure.tzinfo is None:
         departure = departure.replace(tzinfo=timezone.utc)
 
-    origin = geocode(origin_text)
-    destination = geocode(destination_text)
+    origin = _resolve(origin_text)
+    destination = _resolve(destination_text)
     candidates = get_route_options(origin, destination, wanted=3)
 
     summaries = [

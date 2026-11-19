@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .services.planner import DEFAULT_INTERVAL_MILES, plan_trip
-from .services.providers import ProviderError
+from .services.providers import Place, ProviderError, suggest_addresses
 
 ALLOWED_INTERVALS = {10, 25, 50}
 
@@ -14,6 +14,39 @@ ALLOWED_INTERVALS = {10, 25, 50}
 @require_GET
 def health(_request: HttpRequest) -> JsonResponse:
     return JsonResponse({"status": "ok"})
+
+
+MIN_SUGGEST_CHARS = 3
+
+
+@require_GET
+def address_suggestions(request: HttpRequest) -> JsonResponse:
+    query = request.GET.get("q", "").strip()
+    if len(query) < MIN_SUGGEST_CHARS:
+        return JsonResponse({"suggestions": []})
+    if len(query) > 120:
+        return JsonResponse({"error": "q is too long."}, status=400)
+    try:
+        places = suggest_addresses(query)
+    except ProviderError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    return JsonResponse(
+        {"suggestions": [{"label": p.label, "lat": p.lat, "lon": p.lon} for p in places]}
+    )
+
+
+def _parse_location(value):
+    """Free text is geocoded later. A suggestion object carries exact coordinates."""
+    if isinstance(value, dict):
+        try:
+            lat, lon = float(value["lat"]), float(value["lon"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+        return Place(label=str(value.get("label", "")), lat=lat, lon=lon)
+    text = str(value or "").strip()
+    return text or None
 
 
 def _parse_departure(value: str) -> datetime:
@@ -32,10 +65,13 @@ def plan(request: HttpRequest) -> JsonResponse:
     except json.JSONDecodeError:
         return JsonResponse({"error": "Request body must be JSON."}, status=400)
 
-    origin = str(body.get("origin", "")).strip()
-    destination = str(body.get("destination", "")).strip()
-    if not origin or not destination:
-        return JsonResponse({"error": "origin and destination are required."}, status=400)
+    origin = _parse_location(body.get("origin"))
+    destination = _parse_location(body.get("destination"))
+    if origin is None or destination is None:
+        return JsonResponse(
+            {"error": "origin and destination are required (text or a suggestion with lat/lon)."},
+            status=400,
+        )
 
     try:
         departure = _parse_departure(str(body.get("departure", "")))

@@ -282,3 +282,41 @@ td {
     margin: 8px;
   }
 }
+
+.address-field {
+  position: relative;
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 2000;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.suggestion,
+.suggestion-note {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.suggestion-note {
+  color: var(--muted);
+  cursor: default;
+}
+
+.suggestion.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}

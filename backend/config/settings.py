@@ -130,6 +130,8 @@ HTTP_USER_AGENT = 'WeatherAwareTruckRouting/1.0 (technical assessment)'
 NOMINATIM_URL = os.environ.get('NOMINATIM_URL', 'https://nominatim.openstreetmap.org')
 OSRM_URL = os.environ.get('OSRM_URL', 'https://router.project-osrm.org')
 OPEN_METEO_URL = os.environ.get('OPEN_METEO_URL', 'https://api.open-meteo.com/v1')
+# Photon is an OpenStreetMap geocoder built for search-as-you-type suggestions.
+PHOTON_URL = os.environ.get('PHOTON_URL', 'https://photon.komoot.io/api')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

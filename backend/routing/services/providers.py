@@ -59,6 +59,42 @@ def _get_json(url: str, params: dict) -> dict | list:
         raise ProviderError(f"{url} returned invalid JSON") from exc
 
 
+def _photon_label(props: dict) -> str:
+    """'9 Hi River Road, Barnstable, MA 02648' style label from Photon properties."""
+    street = " ".join(p for p in [props.get("housenumber"), props.get("street") or props.get("name")] if p)
+    city = props.get("city") or props.get("town") or props.get("village") or props.get("county") or ""
+    state = props.get("state_code") or props.get("state") or ""
+    parts = [street, city, " ".join(p for p in [state, props.get("postcode")] if p)]
+    return ", ".join(p for p in parts if p)
+
+
+@lru_cache(maxsize=512)
+def suggest_addresses(query: str, limit: int = 6) -> tuple[Place, ...]:
+    """US address suggestions for a partial query (search-as-you-type).
+
+    Photon returns results worldwide; only US hits are kept.
+    """
+    data = _get_json(
+        f"{settings.PHOTON_URL}/",
+        {"q": query, "limit": 15, "lang": "en"},
+    )
+    suggestions: list[Place] = []
+    seen: set[str] = set()
+    for feature in data.get("features", []):
+        props = feature.get("properties", {})
+        if props.get("countrycode") != "US":
+            continue
+        label = _photon_label(props)
+        lon, lat = feature["geometry"]["coordinates"]
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        suggestions.append(Place(label=label, lat=float(lat), lon=float(lon)))
+        if len(suggestions) == limit:
+            break
+    return tuple(suggestions)
+
+
 @lru_cache(maxsize=256)
 def geocode(query: str) -> Place:
     """Resolve a free-text address to coordinates using Nominatim."""
