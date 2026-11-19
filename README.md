@@ -32,7 +32,7 @@ Open http://localhost:5173, enter an origin, destination, departure time and loa
 
 ```bash
 cp .env.example .env            # then edit the values
-docker compose up --build -d    # app on http://localhost (port 80, or HTTP_PORT)
+docker compose up --build -d    # then open the app through the frontend service on port 80 (see Dokploy section for hosted use)
 ```
 
 Nginx (frontend container) serves the app and forwards `/api/` to the `backend` container. The browser only talks to one origin, so CORS is not needed in this setup.
@@ -157,12 +157,14 @@ docs/
   LOOM_WALKTHROUGH.md  Script for the 5–10 minute video
 ```
 
-## Deploying to a VPS
+## Deploying with Dokploy
 
-1. Install Docker and the Compose plugin on the VPS.
-2. Copy the repository to the VPS, then `cp .env.example .env` and set:
-   - `DJANGO_SECRET_KEY` to a long random value
-   - `DJANGO_DEBUG=0`
-   - `DJANGO_ALLOWED_HOSTS` to your domain and/or the VPS IP
-3. Run `docker compose up --build -d`.
-4. Point your domain's DNS to the VPS. For HTTPS, put a TLS terminator in front of port 80 (for example Caddy or Certbot with Nginx). Not included in this setup.
+1. In Dokploy, create a project and add a **Docker Compose** service. Use the Git source (the repository must be on GitHub, GitLab or similar) and the compose file `docker-compose.yml` at the repository root.
+2. In the service's **Environment** tab set:
+   - `DJANGO_SECRET_KEY`: a long random string
+   - `DJANGO_ALLOWED_HOSTS`: your domain, e.g. `trucks.example.com`
+   - `CORS_ALLOWED_ORIGINS`: leave empty
+3. In the **Domains** tab add your domain, select service `frontend` and port `80`, and enable HTTPS (Let's Encrypt).
+4. Deploy. Dokploy builds both images. The frontend container serves the app and proxies `/api` to the backend, so only one domain is needed.
+
+Local check before deploying: `docker compose up --build` uses the variables from a local `.env` (see `.env.example`), but the app will then not be reachable on a host port because the compose file no longer publishes one; use Dokploy or add a `ports` entry temporarily.
