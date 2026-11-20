@@ -12,9 +12,11 @@ truck-specific routing API) behind these same functions.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
@@ -24,6 +26,13 @@ from .geo import haversine_miles, offset_point
 logger = logging.getLogger(__name__)
 
 TIMEOUT_S = 15
+# Transient failures worth retrying: rate limiting and gateway errors.
+RETRY_STATUSES = {429, 502, 503, 504}
+MAX_ATTEMPTS = 3
+MAX_BACKOFF_S = 4
+# Forecasts change hourly, so a short cache avoids repeat calls without going stale.
+WEATHER_CACHE_TTL_S = 30 * 60
+WEATHER_CACHE_MAX_ENTRIES = 5000
 # Search-as-you-type must fail fast: a slow suggestion is worse than none.
 SUGGEST_TIMEOUT_S = 6
 # Rough bounding box of the US (min lon, min lat, max lon, max lat), Alaska and Hawaii included.
@@ -49,13 +58,32 @@ class RouteCandidate:
     geometry: list[tuple[float, float]]  # (lat, lon)
 
 
-def _get_json(url: str, params: dict, timeout: float = TIMEOUT_S) -> dict | list:
+def _retry_delay(response: requests.Response, attempt: int) -> float:
+    """Seconds to wait before retrying: Retry-After when numeric, else exponential backoff."""
+    retry_after = response.headers.get("Retry-After", "")
+    if retry_after.isdigit():
+        return min(float(retry_after), MAX_BACKOFF_S)
+    return min(2.0**attempt, MAX_BACKOFF_S)
+
+
+def _get_json(
+    url: str, params: dict, timeout: float = TIMEOUT_S, attempts: int = 1
+) -> dict | list:
+    """GET a JSON document, retrying transient failures up to `attempts` times."""
     headers = {"User-Agent": settings.HTTP_USER_AGENT}
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=timeout)
-    except requests.RequestException as exc:
-        raise ProviderError(f"Request to {url} failed: {exc}") from exc
-    if response.status_code != 200:
+    for attempt in range(1, attempts + 1):
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=timeout)
+        except requests.RequestException as exc:
+            raise ProviderError(f"Request to {url} failed: {exc}") from exc
+        if response.status_code == 200:
+            break
+        if response.status_code in RETRY_STATUSES and attempt < attempts:
+            time.sleep(_retry_delay(response, attempt))
+            continue
+        if response.status_code == 429:
+            host = urlparse(url).netloc
+            raise ProviderError(f"{host} is rate-limiting requests. Wait a minute and try again.")
         raise ProviderError(f"{url} returned HTTP {response.status_code}")
     try:
         return response.json()
@@ -196,45 +224,71 @@ def _to_float(value) -> float:
     return float(value) if value is not None else 0.0
 
 
+# (lat, lon, start date, end date) -> (time stored, hourly weather)
+_weather_cache: dict[tuple, tuple[float, dict[datetime, HourlyWeather]]] = {}
+
+
+def _parse_hourly(location: dict) -> dict[datetime, HourlyWeather]:
+    hourly = location["hourly"]
+    by_hour: dict[datetime, HourlyWeather] = {}
+    for i, stamp in enumerate(hourly["time"]):
+        hour = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc)
+        by_hour[hour] = HourlyWeather(
+            wind_mph=_to_float(hourly["wind_speed_10m"][i]),
+            rain_in_hr=_to_float(hourly["rain"][i]) / 25.4,  # mm -> in
+            snow_in_hr=_to_float(hourly["snowfall"][i]) / 2.54,  # cm -> in
+        )
+    return by_hour
+
+
+def _cached_weather(key: tuple, now: float) -> dict[datetime, HourlyWeather] | None:
+    entry = _weather_cache.get(key)
+    if entry is None or now - entry[0] > WEATHER_CACHE_TTL_S:
+        return None
+    return entry[1]
+
+
 def get_hourly_weather(
     points: list[tuple[float, float]], start: datetime, end: datetime
 ) -> list[dict[datetime, HourlyWeather]]:
-    """Hourly forecasts for many points in one request.
+    """Hourly forecasts for many points, fetched in as few requests as possible.
 
     Returns one dict per input point, mapping the hour (UTC, floored) to the
-    weather during that hour. Open-Meteo accepts comma-separated coordinates,
-    so all checkpoints of a route are fetched together.
+    weather during that hour. Open-Meteo accepts comma-separated coordinates.
+    Coordinates are rounded to 2 decimals (about 1 km, finer than the forecast
+    grid) so that nearby checkpoints and repeated trips share cached results,
+    which keeps the app under Open-Meteo's free rate limit.
     """
     if not points:
         return []
-    results: list[dict[datetime, HourlyWeather]] = []
+    now = time.monotonic()
+    dates = (start.date().isoformat(), end.date().isoformat())
+    keys = [(round(lat, 2), round(lon, 2), *dates) for lat, lon in points]
+    missing = [key for key in dict.fromkeys(keys) if _cached_weather(key, now) is None]
+
     chunk_size = 100
-    for offset in range(0, len(points), chunk_size):
-        chunk = points[offset : offset + chunk_size]
+    for offset in range(0, len(missing), chunk_size):
+        chunk = missing[offset : offset + chunk_size]
         params = {
-            "latitude": ",".join(f"{lat:.4f}" for lat, _ in chunk),
-            "longitude": ",".join(f"{lon:.4f}" for _, lon in chunk),
+            "latitude": ",".join(f"{key[0]:.2f}" for key in chunk),
+            "longitude": ",".join(f"{key[1]:.2f}" for key in chunk),
             "hourly": "wind_speed_10m,rain,snowfall",
-            "wind_speed_unit": "mph",  # rain/snowfall use metric units, converted below
+            "wind_speed_unit": "mph",  # rain/snowfall use metric units, converted in _parse_hourly
             "timezone": "GMT",
-            "start_date": start.date().isoformat(),
-            "end_date": end.date().isoformat(),
+            "start_date": dates[0],
+            "end_date": dates[1],
         }
-        data = _get_json(f"{settings.OPEN_METEO_URL}/forecast", params)
+        data = _get_json(f"{settings.OPEN_METEO_URL}/forecast", params, attempts=MAX_ATTEMPTS)
         if isinstance(data, dict):  # a single location comes back as an object
             data = [data]
-        for location in data:
-            hourly = location["hourly"]
-            by_hour: dict[datetime, HourlyWeather] = {}
-            for i, stamp in enumerate(hourly["time"]):
-                hour = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc)
-                by_hour[hour] = HourlyWeather(
-                    wind_mph=_to_float(hourly["wind_speed_10m"][i]),
-                    rain_in_hr=_to_float(hourly["rain"][i]) / 25.4,  # mm -> in
-                    snow_in_hr=_to_float(hourly["snowfall"][i]) / 2.54,  # cm -> in
-                )
-            results.append(by_hour)
-    return results
+        if len(data) != len(chunk):
+            raise ProviderError("The weather service returned an unexpected response")
+        if len(_weather_cache) + len(chunk) > WEATHER_CACHE_MAX_ENTRIES:
+            _weather_cache.clear()
+        for key, location in zip(chunk, data):
+            _weather_cache[key] = (now, _parse_hourly(location))
+
+    return [_weather_cache[key][1] for key in keys]
 
 
 def floor_hour(moment: datetime) -> datetime:
