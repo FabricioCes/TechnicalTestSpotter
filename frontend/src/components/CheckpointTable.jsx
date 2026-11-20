@@ -23,7 +23,7 @@ export default function CheckpointTable({ route }) {
               <td>{cp.rain_in_hr} in/h</td>
               <td>{cp.snow_in_hr} in/h</td>
               <td>
-                <span className="risk-pill" style={{ background: riskColor(cp.risk_level) }}>
+                <span className="risk-pill" style={{ '--c': riskColor(cp.risk_level) }}>
                   {cp.risk_level}
                 </span>
               </td>

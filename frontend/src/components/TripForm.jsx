@@ -45,31 +45,41 @@ export default function TripForm({ onSubmit, loading }) {
         onChange={setDestination}
         required
       />
-      <label>
-        Departure
-        <input required type="datetime-local" value={departureLocal} onChange={(e) => setDepartureLocal(e.target.value)} />
-      </label>
-      <label>
-        Load weight (lb)
-        <input
-          required
-          type="number"
-          min="1"
-          max="200000"
-          step="any"
-          value={loadLb}
-          onChange={(e) => setLoadLb(e.target.value)}
-        />
-      </label>
-      <label>
-        Checkpoint every (miles)
-        <select value={intervalMiles} onChange={(e) => setIntervalMiles(e.target.value)}>
-          <option value="10">10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
-        </select>
-      </label>
-      <button type="submit" disabled={loading}>
+      <div className="field-row">
+        <label>
+          Departure
+          <input required type="datetime-local" value={departureLocal} onChange={(e) => setDepartureLocal(e.target.value)} />
+        </label>
+        <label>
+          Load weight (lb)
+          <input
+            required
+            type="number"
+            min="1"
+            max="200000"
+            step="any"
+            value={loadLb}
+            onChange={(e) => setLoadLb(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="field-label">
+        <span id="interval-label">Checkpoint every (miles)</span>
+        <div className="segmented" role="radiogroup" aria-labelledby="interval-label">
+          {['10', '25', '50'].map((miles) => (
+            <button
+              key={miles}
+              type="button"
+              role="radio"
+              aria-checked={String(intervalMiles) === miles}
+              onClick={() => setIntervalMiles(miles)}
+            >
+              {miles}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button type="submit" className="btn-primary" disabled={loading}>
         {loading ? 'Planning…' : 'Plan routes'}
       </button>
     </form>

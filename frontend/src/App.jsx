@@ -41,13 +41,22 @@ export default function App() {
 
   return (
     <div className="app">
-      <header>
-        <h1>Weather-Aware Truck Routing</h1>
-        <p>Compare three routes by weather risk, load rules and travel time.</p>
-      </header>
-
       <div className="layout">
         <aside className="panel">
+          <div className="brand">
+            <div className="brand-mark" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="5" cy="18" r="2" />
+                <circle cx="19" cy="6" r="2" />
+                <path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6" />
+              </svg>
+            </div>
+            <div>
+              <h1>Weather-aware routing</h1>
+              <p>Compare routes by weather risk, load and travel time.</p>
+            </div>
+          </div>
+
           <TripForm onSubmit={handleSubmit} loading={loading} />
           {error && <p className="error">{error}</p>}
 
@@ -90,7 +99,10 @@ export default function App() {
               />
             </>
           ) : (
-            <div className="placeholder">Enter a trip to see routes on the map.</div>
+            <div className="placeholder">
+              <strong>Plan a trip to see the risk along each route</strong>
+              <span>Add an origin, a destination and a departure time. You get three routes ranked by weather risk.</span>
+            </div>
           )}
         </main>
       </div>

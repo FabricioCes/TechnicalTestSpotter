@@ -3,9 +3,8 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from '
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { HeatLayer } from 'leaflet.heat'
-import { riskColor, RISK_LEVELS } from '../risk'
+import { riskColor, RISK_LEVELS, ROUTE_COLORS } from '../risk'
 
-const ROUTE_COLORS = ['#1d4e89', '#7b2cbf', '#ff6b35']
 const HEAT_GRADIENT = { 0.2: '#2a9d8f', 0.4: '#e9c46a', 0.6: '#f4a261', 0.8: '#e76f51', 1: '#6d0e1a' }
 
 function formatEta(iso) {
@@ -77,8 +76,9 @@ export default function MapView({ routes, selectedId, onSelect, heatEnabled, hea
   return (
     <MapContainer center={[39.5, -98.35]} zoom={5} className="map">
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        subdomains="abcd"
       />
       <FitToRoutes routes={routes} />
 
@@ -91,7 +91,7 @@ export default function MapView({ routes, selectedId, onSelect, heatEnabled, hea
             pathOptions={{
               color: ROUTE_COLORS[index % ROUTE_COLORS.length],
               weight: isSelected ? 6 : 3,
-              opacity: isSelected ? 0.9 : 0.4,
+              opacity: isSelected ? 0.95 : 0.45,
             }}
             eventHandlers={{ click: () => onSelect(route.route_id) }}
           />
@@ -105,7 +105,7 @@ export default function MapView({ routes, selectedId, onSelect, heatEnabled, hea
               key={cp.index}
               center={[cp.lat, cp.lon]}
               radius={6}
-              pathOptions={{ color: '#fff', weight: 1.5, fillColor: riskColor(cp.risk_level), fillOpacity: 1 }}
+              pathOptions={{ color: '#07090c', weight: 2, fillColor: riskColor(cp.risk_level), fillOpacity: 1 }}
             >
               <Popup>
                 <strong>Mile {cp.mile}</strong>
@@ -119,12 +119,12 @@ export default function MapView({ routes, selectedId, onSelect, heatEnabled, hea
             </CircleMarker>
           ))}
           {origin && (
-            <CircleMarker center={origin} radius={9} pathOptions={{ color: '#111', fillColor: '#fff', fillOpacity: 1 }}>
+            <CircleMarker center={origin} radius={9} pathOptions={{ color: '#fff', weight: 3, fillColor: '#07090c', fillOpacity: 1 }}>
               <Popup>Origin</Popup>
             </CircleMarker>
           )}
           {destination && (
-            <CircleMarker center={destination} radius={9} pathOptions={{ color: '#111', fillColor: '#111', fillOpacity: 1 }}>
+            <CircleMarker center={destination} radius={9} pathOptions={{ color: '#fff', weight: 3, fillColor: '#fff', fillOpacity: 1 }}>
               <Popup>Destination</Popup>
             </CircleMarker>
           )}
