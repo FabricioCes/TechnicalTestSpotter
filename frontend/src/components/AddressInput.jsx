@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { suggestAddresses } from '../api'
 
-const DEBOUNCE_MS = 300
+const DEBOUNCE_MS = 200
 const MIN_CHARS = 3
 
 // Text field with US address suggestions, similar to Google Maps.
@@ -24,6 +24,7 @@ export default function AddressInput({ label, placeholder, value, onChange, requ
     }
 
     const controller = new AbortController()
+    // Keep the previous suggestions on screen while the next ones load.
     setStatus('loading')
     const timer = setTimeout(async () => {
       try {
@@ -36,6 +37,7 @@ export default function AddressInput({ label, placeholder, value, onChange, requ
         if (err.name !== 'AbortError') {
           setItems([])
           setStatus('error')
+          setOpen(true)
         }
       }
     }, DEBOUNCE_MS)
@@ -78,7 +80,7 @@ export default function AddressInput({ label, placeholder, value, onChange, requ
     }
   }
 
-  const showList = open && (status === 'ready' || status === 'empty' || status === 'loading')
+  const showList = open && (items.length > 0 || status !== 'idle')
   const activeId = active >= 0 ? `${listId}-${active}` : undefined
 
   return (
@@ -107,9 +109,16 @@ export default function AddressInput({ label, placeholder, value, onChange, requ
 
       {showList && (
         <ul id={listId} role="listbox" className="suggestions">
-          {status === 'loading' && <li className="suggestion-note">Searching US addresses…</li>}
+          {status === 'loading' && items.length === 0 && (
+            <li className="suggestion-note">Searching US addresses…</li>
+          )}
           {status === 'empty' && <li className="suggestion-note">No US addresses found</li>}
-          {status === 'ready' &&
+          {status === 'error' && (
+            <li className="suggestion-note">
+              Address search is unavailable. Type a full address and plan the trip anyway.
+            </li>
+          )}
+          {items.length > 0 &&
             items.map((place, index) => (
               <li
                 key={`${place.label}-${index}`}

@@ -33,23 +33,23 @@ export default function TripForm({ onSubmit, loading }) {
     <form className="trip-form" onSubmit={handleSubmit}>
       <AddressInput
         label="Origin"
-        placeholder="9 Hi River Road, Barnstable, MA"
+        placeholder="Search a US address or city"
         value={origin}
         onChange={setOrigin}
         required
       />
       <AddressInput
         label="Destination"
-        placeholder="Salt Lake City, UT"
+        placeholder="Search a US address or city"
         value={destination}
         onChange={setDestination}
         required
       />
+      <label>
+        Departure
+        <input required type="datetime-local" value={departureLocal} onChange={(e) => setDepartureLocal(e.target.value)} />
+      </label>
       <div className="field-row">
-        <label>
-          Departure
-          <input required type="datetime-local" value={departureLocal} onChange={(e) => setDepartureLocal(e.target.value)} />
-        </label>
         <label>
           Load weight (lb)
           <input
@@ -62,21 +62,21 @@ export default function TripForm({ onSubmit, loading }) {
             onChange={(e) => setLoadLb(e.target.value)}
           />
         </label>
-      </div>
-      <div className="field-label">
-        <span id="interval-label">Checkpoint every (miles)</span>
-        <div className="segmented" role="radiogroup" aria-labelledby="interval-label">
-          {['10', '25', '50'].map((miles) => (
-            <button
-              key={miles}
-              type="button"
-              role="radio"
-              aria-checked={String(intervalMiles) === miles}
-              onClick={() => setIntervalMiles(miles)}
-            >
-              {miles}
-            </button>
-          ))}
+        <div className="field-label">
+          <span id="interval-label">Checkpoint every (mi)</span>
+          <div className="segmented" role="radiogroup" aria-labelledby="interval-label">
+            {['10', '25', '50'].map((miles) => (
+              <button
+                key={miles}
+                type="button"
+                role="radio"
+                aria-checked={String(intervalMiles) === miles}
+                onClick={() => setIntervalMiles(miles)}
+              >
+                {miles}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <button type="submit" className="btn-primary" disabled={loading}>

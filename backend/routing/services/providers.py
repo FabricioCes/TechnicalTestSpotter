@@ -24,6 +24,10 @@ from .geo import haversine_miles, offset_point
 logger = logging.getLogger(__name__)
 
 TIMEOUT_S = 15
+# Search-as-you-type must fail fast: a slow suggestion is worse than none.
+SUGGEST_TIMEOUT_S = 6
+# Rough bounding box of the US (min lon, min lat, max lon, max lat), Alaska and Hawaii included.
+US_BBOX = "-179.2,18.8,-66.9,71.5"
 
 
 class ProviderError(Exception):
@@ -45,10 +49,10 @@ class RouteCandidate:
     geometry: list[tuple[float, float]]  # (lat, lon)
 
 
-def _get_json(url: str, params: dict) -> dict | list:
+def _get_json(url: str, params: dict, timeout: float = TIMEOUT_S) -> dict | list:
     headers = {"User-Agent": settings.HTTP_USER_AGENT}
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=TIMEOUT_S)
+        response = requests.get(url, params=params, headers=headers, timeout=timeout)
     except requests.RequestException as exc:
         raise ProviderError(f"Request to {url} failed: {exc}") from exc
     if response.status_code != 200:
@@ -76,7 +80,8 @@ def suggest_addresses(query: str, limit: int = 6) -> tuple[Place, ...]:
     """
     data = _get_json(
         f"{settings.PHOTON_URL}/",
-        {"q": query, "limit": 15, "lang": "en"},
+        {"q": query, "limit": 10, "lang": "en", "bbox": US_BBOX},
+        timeout=SUGGEST_TIMEOUT_S,
     )
     suggestions: list[Place] = []
     seen: set[str] = set()

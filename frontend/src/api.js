@@ -8,10 +8,17 @@ async function readJson(response) {
   return data
 }
 
+// Suggestions already fetched in this session, so retyping or backspacing is instant.
+const suggestionCache = new Map()
+
 export async function suggestAddresses(query, { signal } = {}) {
+  const key = query.trim().toLowerCase()
+  if (suggestionCache.has(key)) return suggestionCache.get(key)
+
   const params = new URLSearchParams({ q: query })
   const response = await fetch(`${API_BASE}/addresses/suggest/?${params}`, { signal })
   const data = await readJson(response)
+  suggestionCache.set(key, data.suggestions)
   return data.suggestions
 }
 
