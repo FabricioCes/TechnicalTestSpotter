@@ -103,7 +103,7 @@ The routing API has to return alternative routes. OSRM's public server returns u
 
 ## How routes, checkpoints and the recommendation work
 
-- **Checkpoints:** points are placed along each route's geometry every `interval_miles` (default 10), always including the origin and destination.
+- **Checkpoints:** points are placed along each route's geometry every `interval_miles` (default 10), always including the origin and destination. Each checkpoint costs one weather API call, so a route is capped at 60 checkpoints: on long trips the interval is widened automatically (the response reports it per route in `checkpoint_interval_miles`) to stay within Open-Meteo's free limits.
 - **ETA:** the routing API's total duration is spread evenly over the distance, so each checkpoint's ETA is proportional to its distance along the route.
 - **Weather at a checkpoint:** the forecast hour matching its ETA.
 - **Mile totals:** each checkpoint is responsible for the stretch of road that ends at it. Those miles are summed per risk level.

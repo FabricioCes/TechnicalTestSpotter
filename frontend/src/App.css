@@ -247,8 +247,13 @@ select:focus-visible {
 }
 
 .recommendation small {
+  display: block;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.recommendation .note {
+  margin-top: 6px;
 }
 
 .route-list {
@@ -513,6 +518,11 @@ tbody tr:hover {
 }
 
 /* Leaflet, restyled for the dark UI */
+/* Free OpenStreetMap tiles are light, so invert them into a dark basemap. */
+.map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(0.9) contrast(0.92) saturate(0.7);
+}
+
 .leaflet-container {
   background: var(--bg);
   font-family: inherit;

@@ -66,6 +66,15 @@ def _retry_delay(response: requests.Response, attempt: int) -> float:
     return min(2.0**attempt, MAX_BACKOFF_S)
 
 
+def _rate_limit_reason(response: requests.Response) -> str:
+    """Open-Meteo says which limit was hit (minutely, hourly, daily) in the JSON body."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    return str(body.get("reason", "")) if isinstance(body, dict) else ""
+
+
 def _get_json(
     url: str, params: dict, timeout: float = TIMEOUT_S, attempts: int = 1
 ) -> dict | list:
@@ -78,12 +87,16 @@ def _get_json(
             raise ProviderError(f"Request to {url} failed: {exc}") from exc
         if response.status_code == 200:
             break
-        if response.status_code in RETRY_STATUSES and attempt < attempts:
+        reason = _rate_limit_reason(response) if response.status_code == 429 else ""
+        # Only a per-minute limit clears fast enough to be worth retrying.
+        waits_out = response.status_code != 429 or not reason or "minutely" in reason.lower()
+        if response.status_code in RETRY_STATUSES and waits_out and attempt < attempts:
             time.sleep(_retry_delay(response, attempt))
             continue
         if response.status_code == 429:
             host = urlparse(url).netloc
-            raise ProviderError(f"{host} is rate-limiting requests. Wait a minute and try again.")
+            detail = reason or "Try again in a few minutes."
+            raise ProviderError(f"{host} is rate-limiting requests. {detail}")
         raise ProviderError(f"{url} returned HTTP {response.status_code}")
     try:
         return response.json()

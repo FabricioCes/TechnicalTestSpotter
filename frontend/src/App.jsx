@@ -22,6 +22,7 @@ export default function App() {
     [plan, selectedId],
   )
   const recommended = plan?.routes.find((r) => r.recommended)
+  const widestInterval = plan ? Math.max(...plan.routes.map((r) => r.checkpoint_interval_miles)) : 0
 
   const handleSubmit = async (form) => {
     setLoading(true)
@@ -68,8 +69,14 @@ export default function App() {
                   <strong>{recommended?.name}</strong>: {plan.recommendation.reason}
                 </p>
                 <small>
-                  Checkpoints every {plan.checkpoint_interval_miles} mi · Load {plan.load_lb.toLocaleString()} lb
+                  Checkpoints every {Math.max(plan.checkpoint_interval_miles, widestInterval)} mi · Load{' '}
+                  {plan.load_lb.toLocaleString()} lb
                 </small>
+                {widestInterval > plan.checkpoint_interval_miles && (
+                  <small className="note">
+                    Long trip: checkpoints are spaced wider than requested to stay within the weather service limits.
+                  </small>
+                )}
               </section>
 
               <RouteList routes={plan.routes} selectedId={selectedRoute?.route_id} onSelect={setSelectedId} />

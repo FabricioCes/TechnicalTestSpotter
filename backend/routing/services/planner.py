@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 
 from .geo import checkpoint_miles, cumulative_miles, sample_along
@@ -20,6 +21,14 @@ from .risk import classify_checkpoint
 
 HEATMAP_HOURS = 48
 DEFAULT_INTERVAL_MILES = 10
+# Every checkpoint costs one weather API call. Capping them keeps a long trip
+# (3 routes x 60 points) well under Open-Meteo's free limit of 600 calls/minute.
+MAX_CHECKPOINTS_PER_ROUTE = 60
+
+
+def effective_interval(total_miles: float, requested_miles: float) -> float:
+    """The requested interval, widened on long routes to respect MAX_CHECKPOINTS_PER_ROUTE."""
+    return max(requested_miles, math.ceil(total_miles / MAX_CHECKPOINTS_PER_ROUTE))
 
 
 def _iso(moment: datetime) -> str:
@@ -32,10 +41,11 @@ def _build_route(
     departure: datetime,
     load_lb: float,
     interval_miles: float,
-) -> RouteSummary:
+) -> tuple[RouteSummary, float]:
     points = candidate.geometry
     cumulative = cumulative_miles(points)
     total_miles = cumulative[-1]
+    interval_miles = effective_interval(total_miles, interval_miles)
     marks = checkpoint_miles(total_miles, interval_miles)
     coords = [sample_along(points, cumulative, mile) for mile in marks]
 
@@ -84,7 +94,7 @@ def _build_route(
             )
         )
 
-    return summarize(
+    summary = summarize(
         route_id=route_id,
         name=candidate.name,
         distance_miles=total_miles,
@@ -92,6 +102,7 @@ def _build_route(
         checkpoints=checkpoints,
         geometry=[[lat, lon] for lat, lon in points],
     )
+    return summary, interval_miles
 
 
 def _checkpoint_json(cp: Checkpoint) -> dict:
@@ -110,7 +121,7 @@ def _checkpoint_json(cp: Checkpoint) -> dict:
     }
 
 
-def _route_json(route: RouteSummary) -> dict:
+def _route_json(route: RouteSummary, interval_miles: float) -> dict:
     return {
         "route_id": route.route_id,
         "name": route.name,
@@ -118,6 +129,7 @@ def _route_json(route: RouteSummary) -> dict:
         "recommended": route.recommended,
         "distance_miles": route.distance_miles,
         "duration_s": round(route.duration_s),
+        "checkpoint_interval_miles": interval_miles,
         "severe_miles": route.severe_miles,
         "high_miles": route.high_miles,
         "no_travel_miles": route.no_travel_miles,
@@ -151,10 +163,12 @@ def plan_trip(
     destination = _resolve(destination_text)
     candidates = get_route_options(origin, destination, wanted=3)
 
-    summaries = [
+    built = [
         _build_route(f"route-{i}", candidate, departure, load_lb, interval_miles)
         for i, candidate in enumerate(candidates, start=1)
     ]
+    summaries = [summary for summary, _ in built]
+    intervals = {summary.route_id: used for summary, used in built}
     ranked = rank_routes(summaries)
     best = ranked[0]
 
@@ -169,5 +183,5 @@ def plan_trip(
             "route_id": best.route_id,
             "reason": explain_choice(best, ranked[1:]),
         },
-        "routes": [_route_json(route) for route in ranked],
+        "routes": [_route_json(route, intervals[route.route_id]) for route in ranked],
     }

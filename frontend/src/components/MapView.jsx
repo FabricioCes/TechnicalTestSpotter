@@ -76,9 +76,9 @@ export default function MapView({ routes, selectedId, onSelect, heatEnabled, hea
   return (
     <MapContainer center={[39.5, -98.35]} zoom={5} className="map">
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        subdomains="abcd"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        className="map-tiles"
       />
       <FitToRoutes routes={routes} />
 

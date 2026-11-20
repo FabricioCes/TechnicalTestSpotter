@@ -35,6 +35,17 @@ class RetryTests(SimpleTestCase):
             with self.assertRaisesMessage(ProviderError, "rate-limiting"):
                 providers._get_json("https://example.test/api", {}, attempts=2)
 
+    def test_hourly_limit_is_reported_and_not_retried(self):
+        reason = "Hourly API request limit exceeded. Please try again in the next hour."
+        limited = FakeResponse(429, {"error": True, "reason": reason})
+        with mock.patch.object(providers.requests, "get", return_value=limited) as fake_get, mock.patch.object(
+            providers.time, "sleep"
+        ) as fake_sleep:
+            with self.assertRaisesMessage(ProviderError, "next hour"):
+                providers._get_json("https://example.test/api", {}, attempts=3)
+        self.assertEqual(fake_get.call_count, 1)
+        fake_sleep.assert_not_called()
+
     def test_does_not_retry_by_default(self):
         with mock.patch.object(providers.requests, "get", return_value=FakeResponse(503)) as fake_get:
             with self.assertRaises(ProviderError):
